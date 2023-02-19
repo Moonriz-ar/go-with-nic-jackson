@@ -14,18 +14,14 @@ func main() {
 	// create a new logger
 	l := log.New(os.Stdout, "product-api", log.LstdFlags)
 
-	// inject logger dependency to handlers
-	helloHandler := handlers.NewHello(l)
-	goodbyeHandler := handlers.NewGoodbye(l)
+	// create handlers
+	productHandler := handlers.NewProducts(l)
 
-	// create new ServeMux
+	// create new ServeMux and register handlers
 	sm := http.NewServeMux()
+	sm.Handle("/", productHandler)
 
-	// register handler to path
-	sm.Handle("/", helloHandler)
-	sm.Handle("/goodbye", goodbyeHandler)
-
-	// configure server
+	// start and configure server
 	s := &http.Server{
 		Addr:         ":9090",
 		Handler:      sm,
