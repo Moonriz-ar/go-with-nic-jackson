@@ -32,9 +32,12 @@ func main() {
 
 	// listens on the TCP network address srv.Addr and then calls Serve to handle requests on incoming connections.
 	go func() {
+		l.Println("starting server on port 9090")
+
 		err := s.ListenAndServe()
 		if err != nil {
-			l.Fatal(err)
+			l.Printf("Error starting server: %s\n", err)
+			os.Exit(1)
 		}
 	}()
 
