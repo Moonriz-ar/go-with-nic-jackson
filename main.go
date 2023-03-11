@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"learn-go/data"
 	"learn-go/handlers"
 	"log"
 	"net/http"
@@ -9,29 +10,46 @@ import (
 	"os/signal"
 	"time"
 
+	"github.com/go-openapi/runtime/middleware"
+	gohandlers "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 )
 
 func main() {
 	// create a new logger
 	l := log.New(os.Stdout, "product-api", log.LstdFlags)
+	v := data.NewValidation()
 
 	// create handlers
-	productHandler := handlers.NewProducts(l)
+	productHandler := handlers.NewProducts(l, v)
 
 	// create new ServeMux and register handlers
 	sm := mux.NewRouter()
 
 	getRouter := sm.Methods(http.MethodGet).Subrouter()
-	getRouter.HandleFunc("/", productHandler.GetProducts)
+	getRouter.HandleFunc("/", productHandler.ListAll)
+	getRouter.HandleFunc("/products/{id:[0-9]+}", productHandler.ListSingle)
 
 	putRouter := sm.Methods(http.MethodPut).Subrouter()
-	putRouter.HandleFunc("/{id:[0-9]+}", productHandler.UpdateProduct)
-	putRouter.Use(productHandler.MiddlewareProductValidation)
+	putRouter.HandleFunc("/{id:[0-9]+}", productHandler.Update)
+	putRouter.Use(productHandler.MiddlewareValidateProduct)
 
 	postRouter := sm.Methods(http.MethodPost).Subrouter()
-	postRouter.HandleFunc("/", productHandler.AddProduct)
-	postRouter.Use(productHandler.MiddlewareProductValidation)
+	postRouter.HandleFunc("/", productHandler.Create)
+	postRouter.Use(productHandler.MiddlewareValidateProduct)
+
+	deleteRouter := sm.Methods(http.MethodDelete).Subrouter()
+	deleteRouter.HandleFunc("/products/{id:[0-9]+}", productHandler.Delete)
+
+	// handler for documentation
+	opts := middleware.RedocOpts{SpecURL: "/swagger.yaml"}
+	sh := middleware.Redoc(opts, nil)
+
+	getRouter.Handle("/docs", sh)
+	getRouter.Handle("/swagger.yaml", http.FileServer(http.Dir("./")))
+
+	// cors
+	ch := gohandlers.CORS(gohandlers.AllowedOrigins([]string{"http://localhost:300`	0"}))
 
 	// start and configure server
 	s := &http.Server{
@@ -57,9 +75,11 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, os.Kill)
 
+	// Block until a signal is received
 	sig := <-signals
 	l.Println("received terminate, graceful shutdown", sig)
 
+	// gracefully shutdown the server, waiting max 30 seconds for current operations to complete
 	duration := time.Now().Add(30 * time.Second)
 	ctx, cancel := context.WithDeadline(context.Background(), duration)
 	defer cancel()
